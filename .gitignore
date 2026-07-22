@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# MkCert
+create-ca-key.pem
+create-ca.pem
+create-cert-key.pem
+create-cert.pem
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

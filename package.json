@@ -1,0 +1,23 @@
+{
+  "name": "webrtc-react-stun-server",
+  "version": "1.0.0",
+  "description": "#### Table of Contents - [Description](#description) - [Running the App Locally](#running-the-app-locally) - [Changes from Original Project](#changes-from-original-project)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sleeplesseditor/WebRTCReact-StunServer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sleeplesseditor/WebRTCReact-StunServer/issues"
+  },
+  "homepage": "https://github.com/sleeplesseditor/WebRTCReact-StunServer#readme",
+  "dependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
