@@ -4,7 +4,9 @@
   "description": "#### Table of Contents - [Description](#description) - [Running the App Locally](#running-the-app-locally) - [Changes from Original Project](#changes-from-original-project)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "repository": {
     "type": "git",
