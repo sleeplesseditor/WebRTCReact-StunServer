@@ -4,7 +4,7 @@
   "description": "#### Table of Contents - [Description](#description) - [Running the App Locally](#running-the-app-locally) - [Changes from Original Project](#changes-from-original-project)",
   "main": "index.js",
   "scripts": {
-    "server": "npm run dev --prefix server",
+    "server": "npm run start --prefix server",
     "client": "npm run dev --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },

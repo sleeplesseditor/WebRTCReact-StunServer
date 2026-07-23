@@ -17,4 +17,4 @@ An initial investigation into the use of Stun Servers with WebRTC, with an updat
 
 ## Changes from Original Project
 - Revised JavaScript solution to Vite-based React project
-- Replaced original CSS styling with basic Tailwind setup
+- Replaced original CSS styling with basic Material UI setup

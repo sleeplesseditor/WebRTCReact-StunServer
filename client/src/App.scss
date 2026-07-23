@@ -1,0 +1,22 @@
+.rtc {
+    &-container {
+        height: 100dvh;
+
+        &__buttons {
+            height: 150px;
+        }
+
+        &__videos {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+
+            .video-card {
+                height: 300px;
+                padding: 10px;
+            }
+        }
+    }
+}
