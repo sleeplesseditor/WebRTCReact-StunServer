@@ -1,24 +1,44 @@
-const fs = require('fs');
-const https = require('https');
+const http = require('http');
 const express = require('express');
 const socketIO = require('socket.io');
 const app = express();
 
 app.use(express.static(__dirname));
 
-const fsKey = fs.readFileSync('cert.key');
-const fsCert = fs.readFileSync('cert.crt');
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
 
-const expressServer = https.createServer({fsKey, fsCert}, app);
-const io = socketIO(expressServer)
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(204);
+        return;
+    }
 
-expressServer.listen(8181);
+    next();
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
+const expressServer = http.createServer(app);
+
+const io = socketIO(expressServer, {
+    cors: {
+        origin: '*'
+    }
+});
+
+expressServer.listen(8181, () => {
+    console.log('Listening on port 8181');
+});
 
 const offers = [];
 const connectedSockets = [];
 
-socketIO.on('connection', (socket) => {
-    console.log(`Connection established on Socket ${socket}`);
+io.on('connection', (socket) => {
+    console.log(`Connection established`);
 
     const userName = socket.handshake.auth.userName;
     const password = socket.handshake.auth.password;

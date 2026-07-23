@@ -17,7 +17,7 @@
     "jsx": "react-jsx",
     "paths": {
         "@components/*": ["./src/components/*"],
-        "@helpers/*": ["./src/helpers*"]
+        "@helpers/*": ["./src/helpers/*"]
     },
     /* Linting */
     "noUnusedLocals": true,
