@@ -1,7 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-
-const userName = `Rob-${Math.floor(Math.random() * 100000)}`;
-const password = 'x';
+import { devUserName, devPassword } from '@helpers/socketHelpers';
 
 const URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) ??
     (import.meta.env.DEV ? 'http://127.0.0.1:8181' : 'http://127.0.0.1:8181');
@@ -36,8 +34,8 @@ const socketConnection = async () => {
 
     socket = io(URL, {
         auth: {
-            userName,
-            password
+            userName: devUserName,
+            password: devPassword
         },
         transports: ['websocket', 'polling'],
         reconnection: true,

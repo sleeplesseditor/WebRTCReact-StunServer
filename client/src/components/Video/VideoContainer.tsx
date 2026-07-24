@@ -3,6 +3,7 @@ import Card from '@mui/material/Card';
 
 interface IVideoProps {
     videoId: string;
+    videoRef: any;
 }
 
 const VideoContainer = (props: IVideoProps) => {
@@ -14,6 +15,7 @@ const VideoContainer = (props: IVideoProps) => {
                 controls
                 id={props.videoId}
                 playsInline
+                ref={props.videoRef}
             />
         </Card>
     )
