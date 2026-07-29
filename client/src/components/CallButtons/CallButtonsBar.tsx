@@ -14,15 +14,12 @@ interface ICallButtonsProps {
 }
 
 const CallButtonsBar = (props: ICallButtonsProps) => {
-    console.log('PROPS', props)
     const [availableOffers, setAvailableOffers] = React.useState([]);
 
     const callUser = async () => {
         await props.fetchUserMedia();
 
         const connection = await props.createPeerConnection();
-
-        console.log('CONNECTION', props.socketConnection)
 
         if (connection) {
             try {
@@ -51,7 +48,6 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
             connection.addIceCandidate(candidate);
             console.log('======Added Ice Candidate======');
         });
-        console.log(offerIceCandidates);
     }
 
     const addAnswer = async(offerObj: any) => {
@@ -108,9 +104,6 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
             )
     });
     
-
-    console.log('availableOffers', availableOffers.length)
-
     return (
         <Box sx={{ flexGrow: 1 }}>
             <ButtonGroup>

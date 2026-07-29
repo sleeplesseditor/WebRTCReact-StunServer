@@ -6,6 +6,7 @@ interface IVideoProps {
 }
 
 const VideoContainer = (props: IVideoProps) => {
+    console.log(`${props.videoId}`, props.videoRef)
     return (
         <Card className="video-card">
             <video 
