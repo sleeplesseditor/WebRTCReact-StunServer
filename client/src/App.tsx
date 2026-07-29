@@ -9,13 +9,15 @@ import './App.scss';
 function App() {
   const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const remotevideoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [peerConnection, setPeerConnection] = React.useState<RTCPeerConnection | null>(null);
+  const [activeSocket, setActiveSocket] = React.useState<Socket | null>(null);
 
-  let activeSocket: Socket | undefined;
-  let isMounted = true;
+  const didIOfferRef = React.useRef(false);
+
+  // let activeSocket: Socket | undefined;
+  // let isMounted = true;
   let localStream: any; 
   let remoteStream: any;
-  let peerConnection: any;
-  let didIOffer = false;
 
   const fetchUserMedia = () => {
     return new Promise<void>(async(resolve, reject) => {
@@ -36,63 +38,83 @@ function App() {
     })
   };
 
+  console.log('didIOffer', didIOfferRef.current)
+
   const createPeerConnection = (offerObj: any) => {
-    return new Promise<void>(async(resolve, reject) => {
-      console.log('CALLED')
-        peerConnection = await new RTCPeerConnection(peerConfiguration)
+    return new Promise<RTCPeerConnection>(async (resolve, reject) => {
+      try {
+        console.log('CALLED');
+        const connection = new RTCPeerConnection(peerConfiguration);
         remoteStream = new MediaStream();
 
-        if(remotevideoRef.current) {
+        setPeerConnection(connection);
+
+        if (remotevideoRef.current) {
+          console.log('remotevideoRef', remoteStream)
           remotevideoRef.current.srcObject = remoteStream;
         }
 
+        console.log('PEER didIOffer', didIOfferRef.current);
+
         localStream.getTracks().forEach((track: any) => {
-            peerConnection.addTrack(track,localStream);
-        })
+          connection.addTrack(track, localStream);
+        });
 
-        peerConnection.addEventListener('icecandidate', (e: any) => {
-            console.log('........Ice candidate found!......')
-            console.log(e)
-            if(e.candidate && activeSocket){
-                activeSocket.emit('sendIceCandidateToSignalingServer',{
-                    iceCandidate: e.candidate,
-                    iceUserName: devUserName,
-                    didIOffer,
-                })    
-            }
-        })
-        
-        peerConnection.addEventListener('track', (e: any) =>{
-            console.log("Got a track from the other peer!! How excting")
-            console.log(e)
-            e.streams[0].getTracks().forEach((track: any) => {
-                remoteStream.addTrack(track,remoteStream);
-                console.log("Here's an exciting moment... fingers cross")
-            })
-        })
+        connection.addEventListener('icecandidate', (e: any) => {
+          console.log('........Ice candidate found!......');
+          console.log(e);
+          if (e.candidate && activeSocket) {
+            activeSocket.emit('sendIceCandidateToSignalingServer', {
+              iceCandidate: e.candidate,
+              iceUserName: devUserName,
+              didIOffer: didIOfferRef.current,
+            });
+          }
+        });
 
-        if(offerObj){
-            await peerConnection.setRemoteDescription(offerObj.offer)
+        connection.addEventListener('track', (e: any) => {
+          console.log('Got a track from the other peer!! How excting');
+          console.log(e);
+          e.streams[0].getTracks().forEach((track: any) => {
+            remoteStream.addTrack(track, remoteStream);
+            console.log("Here's an exciting moment... fingers cross");
+          });
+        });
+
+        if (offerObj) {
+          await connection.setRemoteDescription(offerObj.offer);
         }
-        resolve();
-    })
+
+        resolve(connection);
+      } catch (error) {
+        reject(error);
+      }
+    });
   };
 
-
   React.useEffect(() => {
-    const connect = async () => {
-      try {
-        activeSocket = await socketConnection();
+    // const connect = async () => {
+    //   try {
+    //     socketConnection().then((connectedSocket) => {
+    //       if (isMounted) setActiveSocket(connectedSocket);
+    //     });
 
-        if (!isMounted || !activeSocket) {
-          return;
-        }
-      } catch (error) {
-        console.error('Socket connection failed:', error);
-      }
-    };
+    //     if (!isMounted || !activeSocket) {
+    //       return;
+    //     }
+    //   } catch (error) {
+    //     console.error('Socket connection failed:', error);
+    //   }
+    // };
 
-    void connect();
+    // void connect();
+  let isMounted = true;
+
+    socketConnection().then((connectedSocket) => {
+      console.log('then', isMounted)
+      if (isMounted) setActiveSocket(connectedSocket);
+      console.log('ac', activeSocket)
+    });
 
     return () => {
       isMounted = false;
@@ -102,18 +124,18 @@ function App() {
     };
   }, []);
 
-  console.log('PEER', peerConnection)
+  console.log('PEER', activeSocket, peerConnection)
 
   return (
     <div className="rtc-container">
       <div className="rtc-container__buttons">
-        <CallButtonsBar 
+        {activeSocket ? <CallButtonsBar
           createPeerConnection={createPeerConnection}
-          didIOffer={didIOffer} 
-          fetchUserMedia={fetchUserMedia} 
-          peerConnection={peerConnection} 
-          socketConnection={activeSocket} 
-        />
+          didIOffer={didIOfferRef}
+          fetchUserMedia={fetchUserMedia}
+          peerConnection={peerConnection}
+          socketConnection={activeSocket}
+        /> : null}
       </div>
       <div className="rtc-container__videos">
         <VideoContainer videoId='local-video' videoRef={localVideoRef} />

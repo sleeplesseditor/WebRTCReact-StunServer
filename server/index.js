@@ -97,11 +97,17 @@ io.on('connection', (socket) => {
     socket.on('sendIceCandidateToSignalingServer', (iceCandidateObj) => {
         const { didIOffer, iceUserName, iceCandidate } = iceCandidateObj;
 
+        console.log('OBJ', iceCandidateObj);
+
         if(didIOffer) {
             const offerInOffers = offers.find(offer => offer.offererUserName === iceUserName);
 
+            console.log('offerinOffers', offers, offerInOffers)
+
             if(offerInOffers){
-                offerInOffers.offerIceCandidates.push(iceCandidate)
+                offerInOffers.offerIceCandidates.push(iceCandidate);
+
+                console.log('offerInOffers', offerInOffers)
 
                 if(offerInOffers.answererUserName){
                     const socketToSendTo = connectedSockets.find(socket => socket.userName === offerInOffers.answererUserName);
@@ -114,6 +120,11 @@ io.on('connection', (socket) => {
                 }
             }
         } else {
+            // if(offers.length === 0) {
+            //     console.log('Offers array is empty')
+            //     return;
+            // }
+
             const offerInOffers = offers.find(offer => offer.answererUserName === iceUserName);
             const socketToSendTo = connectedSockets.find(socket => socket.userName === offerInOffers.offererUserName);
 
