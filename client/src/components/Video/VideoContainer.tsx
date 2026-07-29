@@ -1,4 +1,3 @@
-import * as React from 'react';
 import Card from '@mui/material/Card';
 
 interface IVideoProps {
@@ -8,7 +7,7 @@ interface IVideoProps {
 
 const VideoContainer = (props: IVideoProps) => {
     return (
-        <Card className="video-card" sx={{ minWidth: 275 }}>
+        <Card className="video-card">
             <video 
                 autoPlay
                 className="video-player"

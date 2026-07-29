@@ -7,8 +7,6 @@ import socketConnection from '@helpers/socket';
 import './App.scss';
 
 function App() {
-  const [isConnected, setIsConnected] = React.useState<boolean>(false);
-
   const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const remotevideoRef = React.useRef<HTMLVideoElement | null>(null);
 
@@ -39,7 +37,8 @@ function App() {
   };
 
   const createPeerConnection = (offerObj: any) => {
-    return new Promise<void>(async(resolve, reject)=>{
+    return new Promise<void>(async(resolve, reject) => {
+      console.log('CALLED')
         peerConnection = await new RTCPeerConnection(peerConfiguration)
         remoteStream = new MediaStream();
 
@@ -48,7 +47,6 @@ function App() {
         }
 
         localStream.getTracks().forEach((track: any) => {
-            //add localtracks so that they can be sent once the connection is established
             peerConnection.addTrack(track,localStream);
         })
 
@@ -89,32 +87,8 @@ function App() {
         if (!isMounted || !activeSocket) {
           return;
         }
-
-        function onConnect() {
-          setIsConnected(true);
-        }
-
-        function onDisconnect() {
-          setIsConnected(false);
-        }
-
-        function onConnectError(error: Error) {
-          console.error('Socket connection error:', error.message);
-          setIsConnected(false);
-        }
-
-        activeSocket.on('connect', onConnect);
-        activeSocket.on('disconnect', onDisconnect);
-        activeSocket.on('connect_error', onConnectError);
-
-        if (!activeSocket.connected) {
-          setIsConnected(false);
-        }
       } catch (error) {
         console.error('Socket connection failed:', error);
-        if (isMounted) {
-          setIsConnected(false);
-        }
       }
     };
 
@@ -128,10 +102,11 @@ function App() {
     };
   }, []);
 
+  console.log('PEER', peerConnection)
+
   return (
     <div className="rtc-container">
       <div className="rtc-container__buttons">
-        {isConnected ? (<span>Connected</span>) : (<span>Not Connected</span>)}
         <CallButtonsBar 
           createPeerConnection={createPeerConnection}
           didIOffer={didIOffer} 

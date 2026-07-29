@@ -14,22 +14,25 @@ interface ICallButtonsProps {
 }
 
 const CallButtonsBar = (props: ICallButtonsProps) => {
+    console.log('PROPS', props)
     const [availableOffers, setAvailableOffers] = React.useState({});
 
     const callUser = async () => {
         await props.fetchUserMedia();
         await props.createPeerConnection();
 
-        try{
-            console.log("Creating offer...")
-            const offer = await props.peerConnection.createOffer();
-            console.log(offer);
+        if(props.peerConnection !== undefined) {
+            try{
+                console.log("Creating offer...")
+                const offer = await props.peerConnection.createOffer();
+                console.log(offer);
 
-            props.peerConnection.setLocalDescription(offer);
-            props.didIOffer = true;
-            props.socketConnection.emit('newOffer', offer); 
-        } catch(err){
-            console.log(err)
+                props.peerConnection.setLocalDescription(offer);
+                props.didIOffer = true;
+                props.socketConnection.emit('newOffer', offer); 
+            } catch(err){
+                console.log(err)
+            }
         }
     }
 
@@ -57,24 +60,26 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
     }
 
     React.useEffect(() => {
-        props.socketConnection.on('availableOffers', (offers: any) => {
-            console.log(offers)
-            setAvailableOffers(offers)
-        })
+        if(props.socketConnection) {
+            props.socketConnection.on('availableOffers', (offers: any) => {
+                console.log(offers)
+                setAvailableOffers(offers)
+            })
 
-        props.socketConnection.on('newOfferAwaiting', (offers: any) => {
-            setAvailableOffers(offers)
-        })
+            props.socketConnection.on('newOfferAwaiting', (offers: any) => {
+                setAvailableOffers(offers)
+            })
 
-        props.socketConnection.on('answerResponse', (offerObj: any) => {
-            console.log(offerObj)
-            addAnswer(offerObj)
-        })
+            props.socketConnection.on('answerResponse', (offerObj: any) => {
+                console.log(offerObj)
+                addAnswer(offerObj)
+            })
 
-        props.socketConnection.on('receivedIceCandidateFromServer', (iceCandidate: any) => {
-            addNewIceCandidate(iceCandidate)
-            console.log(iceCandidate)
-        })
+            props.socketConnection.on('receivedIceCandidateFromServer', (iceCandidate: any) => {
+                addNewIceCandidate(iceCandidate)
+                console.log(iceCandidate)
+            })
+        }
     }, [props.socketConnection]);
 
     const renderOfferButtons = (availableOffersArr: any) => 
