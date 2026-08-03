@@ -58,6 +58,7 @@ io.on('connection', (socket) => {
     }
 
     socket.on('newOffer', (newOffer) => {
+        console.log('Received offer from', userName, newOffer);
         offers.push({
             offererUserName: userName,
             offer: newOffer,
@@ -67,10 +68,11 @@ io.on('connection', (socket) => {
             answererIceCandidates: []
         });
 
-        socket.broadcast.emit('newOfferAwaiting',offers.slice(-1));
+        socket.broadcast.emit('newOfferAwaiting', offers.slice(-1));
     });
 
     socket.on('newAnswer', (offerObj, ackFunction) => {
+        console.log('Received answer from', userName, 'for', offerObj.offererUserName);
         const socketToAnswer = connectedSockets.find(socket => socket.userName === offerObj.offererUserName);
 
         if(!socketToAnswer){
@@ -91,11 +93,22 @@ io.on('connection', (socket) => {
         offerToUpdate.answer = offerObj.answer;
         offerToUpdate.answererUserName = userName;
 
-        socket.to(socketIdToAnswer).emit('answerResponse',offerToUpdate);
+        const socketToSendTo = connectedSockets.find(socket => socket.userName === offerToUpdate.offererUserName);
+        if(socketToSendTo){
+            offerToUpdate.answererIceCandidates.forEach((candidate) => {
+                socket.to(socketToSendTo.socketId).emit('receivedIceCandidateFromServer', candidate);
+            });
+            offerToUpdate.answererIceCandidates = [];
+        }
+
+        socket.to(socketIdToAnswer).emit('answerResponse', offerToUpdate);
     });
 
     socket.on('sendIceCandidateToSignalingServer', (iceCandidateObj) => {
         const { didIOffer, iceUserName, iceCandidate } = iceCandidateObj;
+        console.log('Received ICE candidate from', userName, 'didIOffer=', didIOffer, 'for', iceUserName);
+
+        console.log('OFFERS ARR', iceUserName, offers.map((offer) => offer.offererUserName), offers.find(offer => offer.offererUserName === iceUserName));
 
         if(didIOffer) {
             const offerInOffers = offers.find(offer => offer.offererUserName === iceUserName);
@@ -114,13 +127,23 @@ io.on('connection', (socket) => {
                 }
             }
         } else {
-            const offerInOffers = offers.find(offer => offer.answererUserName === iceUserName);
-            const socketToSendTo = connectedSockets.find(socket => socket.userName === offerInOffers.offererUserName);
+            const offerInOffers = offers.find(offer => socket.userName === offer.offererUserName);
 
-            if(socketToSendTo) {
-                socket.to(socketToSendTo.socketId).emit('receivedIceCandidateFromServer',iceCandidate);
-            } else {
-                console.log("Ice candidate recieved but could not find offerer");
+            if(!offerInOffers){
+                console.log("No offer found for answerer ice candidate");
+                return;
+            }
+
+            offerInOffers.answererIceCandidates.push(iceCandidate);
+
+            if(offerInOffers.answererUserName && offerInOffers.offererUserName){
+                const socketToSendTo = connectedSockets.find(socket => socket.userName === offerInOffers.offererUserName);
+
+                if(socketToSendTo) {
+                    socket.to(socketToSendTo.socketId).emit('receivedIceCandidateFromServer',iceCandidate);
+                } else {
+                    console.log("Ice candidate recieved but could not find offerer");
+                }
             }
         }
     });

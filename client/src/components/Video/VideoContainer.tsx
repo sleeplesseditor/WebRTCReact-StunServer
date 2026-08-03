@@ -1,24 +1,25 @@
+import * as React from 'react';
 import Card from '@mui/material/Card';
 
 interface IVideoProps {
     videoId: string;
-    videoRef: any;
 }
 
-const VideoContainer = (props: IVideoProps) => {
-    console.log(`${props.videoId}`, props.videoRef)
+const VideoContainer = React.forwardRef<HTMLVideoElement, IVideoProps>(function VideoContainerInner(props, ref) {
     return (
         <Card className="video-card">
-            <video 
+            <video
                 autoPlay
                 className="video-player"
                 controls
                 id={props.videoId}
                 playsInline
-                ref={props.videoRef}
+                ref={ref}
             />
         </Card>
     )
-};
+});
+
+VideoContainer.displayName = 'VideoContainer';
 
 export default VideoContainer;

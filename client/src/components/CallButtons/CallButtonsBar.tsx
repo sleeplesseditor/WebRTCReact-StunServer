@@ -10,26 +10,31 @@ interface ICallButtonsProps {
     didIOffer: any;
     fetchUserMedia: any;
     peerConnection: any;
+    peerConnectionRef: React.MutableRefObject<RTCPeerConnection | null>;
     socketConnection: any;
+    userName: string;
 }
 
 const CallButtonsBar = (props: ICallButtonsProps) => {
     const [availableOffers, setAvailableOffers] = React.useState([]);
+    const pendingRemoteCandidatesRef = React.useRef<any[]>([]);
 
     const callUser = async () => {
+        console.log('callUser invoked');
         await props.fetchUserMedia();
 
+        props.didIOffer.current = true;
         const connection = await props.createPeerConnection();
 
         if (connection) {
             try {
                 console.log('Creating offer...');
                 const offer = await connection.createOffer();
-                console.log('OFF', offer);
-                props.didIOffer.current = true;
                 await connection.setLocalDescription(offer);
 
-                props.socketConnection.emit('newOffer', offer);
+                const offerPayload = offer.toJSON ? offer.toJSON() : offer;
+                console.log('Emitting offer', offerPayload);
+                props.socketConnection.emit('newOffer', offerPayload);
             } catch (err) {
                 console.log(err);
             }
@@ -37,25 +42,64 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
     };
 
     const answerCall = async(offerObj: any) => {
+        console.log('answerCall invoked', offerObj);
+        props.didIOffer.current = false;
         await props.fetchUserMedia();
         const connection = await props.createPeerConnection(offerObj);
+        console.log('Creating answer for offer', offerObj);
         const answer = await connection.createAnswer({});
         await connection.setLocalDescription(answer);
 
-        offerObj.answer = answer;
+        const answerPayload = answer.toJSON ? answer.toJSON() : answer;
+        offerObj.answer = answerPayload;
+        console.log('Sending answer', offerObj);
         const offerIceCandidates = await props.socketConnection.emitWithAck('newAnswer', offerObj);
-        offerIceCandidates.forEach((candidate: any) => {
-            connection.addIceCandidate(candidate);
-            console.log('======Added Ice Candidate======');
-        });
+        console.log('Answer ack candidates', offerIceCandidates);
+        if (Array.isArray(offerIceCandidates)) {
+            for (const candidate of offerIceCandidates) {
+                try {
+                    await connection.addIceCandidate(candidate);
+                    console.log('======Added Ice Candidate======');
+                } catch (candidateError) {
+                    console.error('Failed to add candidate from answer ack', candidateError);
+                }
+            }
+        }
     }
 
     const addAnswer = async(offerObj: any) => {
-        await props.peerConnection.setRemoteDescription(offerObj.answer)
+        const connection = props.peerConnectionRef.current ?? props.peerConnection;
+        if (!connection) return;
+        const remoteDescription = offerObj.answer
+            ? new RTCSessionDescription(offerObj.answer)
+            : null;
+
+        if (remoteDescription) {
+            console.log('Applying remote description', remoteDescription);
+            await connection.setRemoteDescription(remoteDescription);
+
+            if (pendingRemoteCandidatesRef.current.length > 0) {
+                console.log('Draining pending remote ICE candidates', pendingRemoteCandidatesRef.current.length);
+                for (const candidate of pendingRemoteCandidatesRef.current) {
+                    await connection.addIceCandidate(candidate);
+                }
+                pendingRemoteCandidatesRef.current = [];
+            }
+        }
     }
 
-    const addNewIceCandidate = (iceCandidate: any) => {
-        props.peerConnection.addIceCandidate(iceCandidate)
+    const addNewIceCandidate = async(iceCandidate: any) => {
+        const connection = props.peerConnectionRef.current ?? props.peerConnection;
+        if (!connection) return;
+        console.log('Adding ICE candidate', iceCandidate);
+
+        if (!connection.remoteDescription || !connection.remoteDescription.type) {
+            pendingRemoteCandidatesRef.current.push(iceCandidate);
+            console.log('Queued ICE candidate until remote description is set');
+            return;
+        }
+
+        await connection.addIceCandidate(iceCandidate);
     }
 
     React.useEffect(() => {
@@ -63,32 +107,37 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
 
         const socket = props.socketConnection;
 
-        socket.on('availableOffers', (offers: any) => {
+        const handleAvailableOffers = (offers: any) => {
             console.log(offers);
             setAvailableOffers(offers);
-        });
+        };
 
-        socket.on('newOfferAwaiting', (offers: any) => {
+        const handleNewOfferAwaiting = (offers: any) => {
             setAvailableOffers(offers);
-        });
+        };
 
-        socket.on('answerResponse', (offerObj: any) => {
-            console.log(offerObj);
-            addAnswer(offerObj);
-        });
+        const handleAnswerResponse = (offerObj: any) => {
+            console.log('answerResponse received', offerObj);
+            void addAnswer(offerObj);
+        };
 
-        socket.on('receivedIceCandidateFromServer', (iceCandidate: any) => {
-            addNewIceCandidate(iceCandidate);
-            console.log(iceCandidate);
-        });
+        const handleIceCandidate = (iceCandidate: any) => {
+            console.log('receivedIceCandidateFromServer', iceCandidate);
+            void addNewIceCandidate(iceCandidate);
+        };
+
+        socket.on('availableOffers', handleAvailableOffers);
+        socket.on('newOfferAwaiting', handleNewOfferAwaiting);
+        socket.on('answerResponse', handleAnswerResponse);
+        socket.on('receivedIceCandidateFromServer', handleIceCandidate);
 
         return () => {
-            socket.off('availableOffers', () => setAvailableOffers([]));
-            socket.off('newOfferAwaiting', () => setAvailableOffers([]));
-            socket.off('answerResponse', (offerObj: any) => addAnswer(offerObj));
-            socket.off('receivedIceCandidateFromServer', (iceCandidate: any) => addNewIceCandidate(iceCandidate));
+            socket.off('availableOffers', handleAvailableOffers);
+            socket.off('newOfferAwaiting', handleNewOfferAwaiting);
+            socket.off('answerResponse', handleAnswerResponse);
+            socket.off('receivedIceCandidateFromServer', handleIceCandidate);
         };
-    }, [props.socketConnection]);
+    }, [props.peerConnection, props.socketConnection]);
 
     const renderOfferButtons = (availableOffersArr: any) => 
         availableOffersArr.map(( offer: any ) => {
@@ -106,6 +155,7 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
     
     return (
         <Box sx={{ flexGrow: 1 }}>
+            <span>{props.userName}</span>
             <ButtonGroup>
                 <Button 
                     color="success"
