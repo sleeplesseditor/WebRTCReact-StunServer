@@ -58,7 +58,7 @@ io.on('connection', (socket) => {
     }
 
     socket.on('newOffer', (newOffer) => {
-        console.log('Received offer from', userName, newOffer);
+        console.log('Received offer from', userName);
         offers.push({
             offererUserName: userName,
             offer: newOffer,
@@ -90,10 +90,12 @@ io.on('connection', (socket) => {
         };
 
         ackFunction(offerToUpdate.offerIceCandidates);
+
         offerToUpdate.answer = offerObj.answer;
         offerToUpdate.answererUserName = userName;
 
         const socketToSendTo = connectedSockets.find(socket => socket.userName === offerToUpdate.offererUserName);
+
         if(socketToSendTo){
             offerToUpdate.answererIceCandidates.forEach((candidate) => {
                 socket.to(socketToSendTo.socketId).emit('receivedIceCandidateFromServer', candidate);
@@ -107,8 +109,6 @@ io.on('connection', (socket) => {
     socket.on('sendIceCandidateToSignalingServer', (iceCandidateObj) => {
         const { didIOffer, iceUserName, iceCandidate } = iceCandidateObj;
         console.log('Received ICE candidate from', userName, 'didIOffer=', didIOffer, 'for', iceUserName);
-
-        console.log('OFFERS ARR', iceUserName, offers.map((offer) => offer.offererUserName), offers.find(offer => offer.offererUserName === iceUserName));
 
         if(didIOffer) {
             const offerInOffers = offers.find(offer => offer.offererUserName === iceUserName);

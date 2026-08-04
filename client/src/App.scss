@@ -1,20 +1,39 @@
+.call-buttons-bar {
+    padding: 10px;
+    background: linear-gradient(180deg,rgba(156, 156, 156, 1) 0%, rgba(105, 105, 105, 1) 100%);
+    color: #000000;
+
+    &__content {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+    }
+
+    &__id {
+        margin: 0px 10px;
+    }
+}
+
 .rtc {
     &-container {
         height: 100dvh;
+        width: 100%;
 
         &__buttons {
             height: 150px;
         }
 
         &__videos {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            align-items: center;
-            gap: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            grid-gap: 15px;
+            margin: 15px;
 
             .video-card {
-                height: 300px;
+                height: stretch;
                 padding: 10px;
             }
         }

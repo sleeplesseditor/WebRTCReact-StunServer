@@ -11,14 +11,15 @@ function App() {
   const remoteVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const [peerConnection, setPeerConnection] = React.useState<RTCPeerConnection | null>(null);
   const [activeSocket, setActiveSocket] = React.useState<Socket | null>(null);
-  const [remoteStreamReady, setRemoteStreamReady] = React.useState(false);
 
   const didIOfferRef = React.useRef(false);
   const localStreamRef = React.useRef<MediaStream | null>(null);
   const remoteStreamRef = React.useRef<MediaStream | null>(null);
-  const activeSocketRef = React.useRef<Socket | null>(null);
   const peerConnectionRef = React.useRef<RTCPeerConnection | null>(null);
-  const hasUserGestureRef = React.useRef(false);
+
+  const [availableOffers, setAvailableOffers] = React.useState([]);
+  const pendingRemoteCandidatesRef = React.useRef<any[]>([]);
+  
 
   const rtcLog = React.useCallback((message: string, ...args: unknown[]) => {
     console.log(message, ...args);
@@ -28,31 +29,6 @@ function App() {
       logs.push([message, ...args]);
       targetWindow.__rtcLogs = logs;
     }
-  }, []);
-
-  const startRemotePlayback = React.useCallback(() => {
-    const video = remoteVideoRef.current;
-    console.log('VIDEO REF', video);
-    if (!video) {
-      return;
-    }
-
-    if (!hasUserGestureRef.current) {
-      hasUserGestureRef.current = true;
-    }
-
-    const stream = video.srcObject;
-    const hasLiveTracks = stream instanceof MediaStream && stream.getTracks().some((track) => track.readyState === 'live');
-       console.log('hasLiveTracks', hasLiveTracks)
-
-    if (!hasLiveTracks) {
-      return;
-    }
-
-
-    void video.play().catch((error: unknown) => {
-      console.error('Remote video playback failed', error);
-    });
   }, []);
 
   const fetchUserMedia = () => {
@@ -84,6 +60,17 @@ function App() {
         setPeerConnection(connection);
         peerConnectionRef.current = connection;
 
+        connection.addEventListener('icecandidate', (e: any) => {
+          rtcLog('icecandidate generated', e.candidate?.candidate ?? null);
+          if (e.candidate && activeSocket) {
+            activeSocket.emit('sendIceCandidateToSignalingServer', {
+              iceCandidate: e.candidate,
+              iceUserName: devUserName,
+              didIOffer: didIOfferRef.current,
+            });
+          }
+        });
+
         connection.addEventListener('track', (e: RTCTrackEvent) => {
           const remoteTrack = e.track;
           const incomingStream = e.streams?.[0];
@@ -99,35 +86,15 @@ function App() {
 
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = streamToShow;
-            setRemoteStreamReady(true);
             rtcLog('assigned remote stream to video element', streamToShow.id);
-            if (hasUserGestureRef.current) {
-              startRemotePlayback();
-            }
           }
         });
-
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = null;
-        }
 
         if (localStreamRef.current) {
           localStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => {
             connection.addTrack(track, localStreamRef.current as MediaStream);
           });
         }
-
-        connection.addEventListener('icecandidate', (e: any) => {
-          const socket = activeSocketRef.current;
-          rtcLog('icecandidate generated', e.candidate?.candidate ?? null);
-          if (e.candidate && socket) {
-            socket.emit('sendIceCandidateToSignalingServer', {
-              iceCandidate: e.candidate,
-              iceUserName: devUserName,
-              didIOffer: didIOfferRef.current,
-            });
-          }
-        });
 
         connection.addEventListener('connectionstatechange', () => {
           rtcLog('connection state', connection.connectionState);
@@ -158,55 +125,100 @@ function App() {
     });
   };
 
-  React.useEffect(() => {
-    const handleUserGesture = () => {
-      hasUserGestureRef.current = true;
-      startRemotePlayback();
-      window.removeEventListener('click', handleUserGesture);
-      window.removeEventListener('touchstart', handleUserGesture);
-    };
+    const addAnswer = async(offerObj: any) => {
+        const connection = peerConnectionRef.current ?? peerConnection;
+        if (!connection) return;
+        const remoteDescription = offerObj.answer
+            ? new RTCSessionDescription(offerObj.answer)
+            : null;
 
-    window.addEventListener('click', handleUserGesture);
-    window.addEventListener('touchstart', handleUserGesture);
+        if (remoteDescription) {
+            console.log('Applying remote description', remoteDescription);
+            await connection.setRemoteDescription(remoteDescription);
 
-    let isMounted = true;
-
-    socketConnection(devUserName).then((connectedSocket) => {
-      if (isMounted) {
-        activeSocketRef.current = connectedSocket;
-        setActiveSocket(connectedSocket);
-      }
-    });
-
-    return () => {
-      window.removeEventListener('click', handleUserGesture);
-      window.removeEventListener('touchstart', handleUserGesture);
-      isMounted = false;
-      if (activeSocketRef.current) {
-        activeSocketRef.current.disconnect();
-        activeSocketRef.current = null;
-      }
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (remoteStreamReady && hasUserGestureRef.current) {
-      startRemotePlayback();
+            if (pendingRemoteCandidatesRef.current.length > 0) {
+                console.log('Draining pending remote ICE candidates', pendingRemoteCandidatesRef.current.length);
+                for (const candidate of pendingRemoteCandidatesRef.current) {
+                    await connection.addIceCandidate(candidate);
+                }
+                pendingRemoteCandidatesRef.current = [];
+            }
+        }
     }
-  }, [remoteStreamReady, startRemotePlayback]);
 
-  console.log('remoteVideoRef', remoteVideoRef?.current?.srcObject)
+    const addNewIceCandidate = async(iceCandidate: any) => {
+        const connection = peerConnectionRef.current ?? peerConnection;
+        if (!connection) return;
+        console.log('Adding ICE candidate', iceCandidate);
+
+        if (!connection.remoteDescription || !connection.remoteDescription.type) {
+            pendingRemoteCandidatesRef.current.push(iceCandidate);
+            console.log('Queued ICE candidate until remote description is set');
+            return;
+        }
+
+        await connection.addIceCandidate(iceCandidate);
+    }
+
+    React.useEffect(() => {
+      setAvailableOffers([]);
+
+      let isMounted = true;
+
+      socketConnection(devUserName).then((connectedSocket) => {
+        if (isMounted) {
+          setActiveSocket(connectedSocket);
+        }
+
+        function handleAvailableOffers(offers: any){
+            console.log('handleAvailableOffers', offers);
+            setAvailableOffers(offers);
+        };
+
+        function handleNewOfferAwaiting(offers: any){
+            console.log('handleNewOfferAwaiting', offers);
+            setAvailableOffers(offers);
+        };
+
+        function handleAnswerResponse(offerObj: any){
+            console.log('answerResponse received', offerObj);
+            void addAnswer(offerObj);
+        };
+
+        function handleIceCandidate(iceCandidate: any){
+            console.log('receivedIceCandidateFromServer', iceCandidate);
+            void addNewIceCandidate(iceCandidate);
+        };
+
+        connectedSocket?.on('availableOffers', handleAvailableOffers);
+        connectedSocket?.on('newOfferAwaiting', handleNewOfferAwaiting);
+        connectedSocket?.on('answerResponse', handleAnswerResponse);
+        connectedSocket?.on('receivedIceCandidateFromServer', handleIceCandidate);
+
+        });
+
+
+        return () => {
+            isMounted = false;
+
+            if (activeSocket) {
+              activeSocket.disconnect();
+              setActiveSocket(null);
+            }
+        };
+    }, []);
+
+    console.log('AV', availableOffers)
 
   return (
     <div className="rtc-container">
       <div className="rtc-container__buttons">
         {activeSocket ? (
           <CallButtonsBar
+            availableOffers={availableOffers}
             createPeerConnection={createPeerConnection}
             didIOffer={didIOfferRef}
             fetchUserMedia={fetchUserMedia}
-            peerConnection={peerConnection}
-            peerConnectionRef={peerConnectionRef}
             socketConnection={activeSocket}
             userName={devUserName}
           /> 
@@ -215,11 +227,6 @@ function App() {
       <div className="rtc-container__videos">
         <VideoContainer ref={localVideoRef} videoId='local-video' />
         <VideoContainer ref={remoteVideoRef} videoId='remote-video' />
-        {remoteStreamReady ? (
-          <button type="button" onClick={startRemotePlayback}>
-            Play remote video
-          </button>
-        ) : null}
       </div>
     </div>
   )

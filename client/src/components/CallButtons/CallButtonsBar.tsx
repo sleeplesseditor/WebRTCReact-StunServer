@@ -1,4 +1,3 @@
-import * as React from 'react';
 import Box from '@mui/material/Box';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Button from '@mui/material/Button';
@@ -6,19 +5,15 @@ import LocalPhoneIcon from '@mui/icons-material/LocalPhone';
 import PhoneForwardedIcon from '@mui/icons-material/PhoneForwarded';
 
 interface ICallButtonsProps {
+    availableOffers: any;
     createPeerConnection: (obj?: any) => Promise<any>;
     didIOffer: any;
     fetchUserMedia: any;
-    peerConnection: any;
-    peerConnectionRef: React.MutableRefObject<RTCPeerConnection | null>;
     socketConnection: any;
     userName: string;
 }
 
 const CallButtonsBar = (props: ICallButtonsProps) => {
-    const [availableOffers, setAvailableOffers] = React.useState([]);
-    const pendingRemoteCandidatesRef = React.useRef<any[]>([]);
-
     const callUser = async () => {
         console.log('callUser invoked');
         await props.fetchUserMedia();
@@ -45,16 +40,22 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
         console.log('answerCall invoked', offerObj);
         props.didIOffer.current = false;
         await props.fetchUserMedia();
+
         const connection = await props.createPeerConnection(offerObj);
         console.log('Creating answer for offer', offerObj);
         const answer = await connection.createAnswer({});
         await connection.setLocalDescription(answer);
 
         const answerPayload = answer.toJSON ? answer.toJSON() : answer;
-        offerObj.answer = answerPayload;
-        console.log('Sending answer', offerObj);
-        const offerIceCandidates = await props.socketConnection.emitWithAck('newAnswer', offerObj);
+        const updatedOfferObj = {
+            ...offerObj,
+            answer: answerPayload
+        }
+
+        console.log('Sending answer', updatedOfferObj);
+        const offerIceCandidates = await props.socketConnection.emitWithAck('newAnswer', updatedOfferObj);
         console.log('Answer ack candidates', offerIceCandidates);
+
         if (Array.isArray(offerIceCandidates)) {
             for (const candidate of offerIceCandidates) {
                 try {
@@ -66,78 +67,6 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
             }
         }
     }
-
-    const addAnswer = async(offerObj: any) => {
-        const connection = props.peerConnectionRef.current ?? props.peerConnection;
-        if (!connection) return;
-        const remoteDescription = offerObj.answer
-            ? new RTCSessionDescription(offerObj.answer)
-            : null;
-
-        if (remoteDescription) {
-            console.log('Applying remote description', remoteDescription);
-            await connection.setRemoteDescription(remoteDescription);
-
-            if (pendingRemoteCandidatesRef.current.length > 0) {
-                console.log('Draining pending remote ICE candidates', pendingRemoteCandidatesRef.current.length);
-                for (const candidate of pendingRemoteCandidatesRef.current) {
-                    await connection.addIceCandidate(candidate);
-                }
-                pendingRemoteCandidatesRef.current = [];
-            }
-        }
-    }
-
-    const addNewIceCandidate = async(iceCandidate: any) => {
-        const connection = props.peerConnectionRef.current ?? props.peerConnection;
-        if (!connection) return;
-        console.log('Adding ICE candidate', iceCandidate);
-
-        if (!connection.remoteDescription || !connection.remoteDescription.type) {
-            pendingRemoteCandidatesRef.current.push(iceCandidate);
-            console.log('Queued ICE candidate until remote description is set');
-            return;
-        }
-
-        await connection.addIceCandidate(iceCandidate);
-    }
-
-    React.useEffect(() => {
-        if (!props.socketConnection) return;
-
-        const socket = props.socketConnection;
-
-        const handleAvailableOffers = (offers: any) => {
-            console.log(offers);
-            setAvailableOffers(offers);
-        };
-
-        const handleNewOfferAwaiting = (offers: any) => {
-            setAvailableOffers(offers);
-        };
-
-        const handleAnswerResponse = (offerObj: any) => {
-            console.log('answerResponse received', offerObj);
-            void addAnswer(offerObj);
-        };
-
-        const handleIceCandidate = (iceCandidate: any) => {
-            console.log('receivedIceCandidateFromServer', iceCandidate);
-            void addNewIceCandidate(iceCandidate);
-        };
-
-        socket.on('availableOffers', handleAvailableOffers);
-        socket.on('newOfferAwaiting', handleNewOfferAwaiting);
-        socket.on('answerResponse', handleAnswerResponse);
-        socket.on('receivedIceCandidateFromServer', handleIceCandidate);
-
-        return () => {
-            socket.off('availableOffers', handleAvailableOffers);
-            socket.off('newOfferAwaiting', handleNewOfferAwaiting);
-            socket.off('answerResponse', handleAnswerResponse);
-            socket.off('receivedIceCandidateFromServer', handleIceCandidate);
-        };
-    }, [props.peerConnection, props.socketConnection]);
 
     const renderOfferButtons = (availableOffersArr: any) => 
         availableOffersArr.map(( offer: any ) => {
@@ -154,23 +83,25 @@ const CallButtonsBar = (props: ICallButtonsProps) => {
     });
     
     return (
-        <Box sx={{ flexGrow: 1 }}>
-            <span>{props.userName}</span>
-            <ButtonGroup>
-                <Button 
-                    color="success"
-                    onClick={() => callUser()}
-                    startIcon={<PhoneForwardedIcon />}
-                    variant="contained"
-                >
-                    Call
-                </Button>
-            </ButtonGroup>
-            {availableOffers && availableOffers.length >= 0 ? (
+        <Box className="call-buttons-bar" sx={{ flexGrow: 1 }}>
+            <div className="call-buttons-bar__content">
+                <span className="call-buttons-bar__id">User ID: {props.userName}</span>
                 <ButtonGroup>
-                    {renderOfferButtons(availableOffers)}
+                    <Button 
+                        color="success"
+                        onClick={() => callUser()}
+                        startIcon={<PhoneForwardedIcon />}
+                        variant="contained"
+                    >
+                        Call
+                    </Button>
                 </ButtonGroup>
-            ) : null}
+                {props.availableOffers && props.availableOffers.length > 0 ? (
+                    <ButtonGroup>
+                        {renderOfferButtons(props.availableOffers)}
+                    </ButtonGroup>
+                ) : null}
+            </div>
         </Box>
     )
 };
